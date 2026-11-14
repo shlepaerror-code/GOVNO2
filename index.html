@@ -4,7 +4,166 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Симулятор струи</title>
-<link rel="stylesheet" href="style.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: radial-gradient(circle at 50% 20%, #1a1a2e, #0a0a12 80%);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    color: #cfd8ff;
+    overflow: hidden;
+  }
+
+  h1 {
+    text-align: center;
+    margin: 10px 0 5px;
+    font-size: 18px;
+    letter-spacing: 2px;
+    color: #8ab4ff;
+    text-shadow: 0 0 14px #3a5cff;
+    flex-shrink: 0;
+  }
+
+  #scene {
+    position: relative;
+    flex: 1; 
+    width: 100%;
+    min-height: 250px;
+    background: radial-gradient(ellipse at 50% 90%, #1c2440, #06060c 75%);
+    box-shadow: inset 0 0 60px #000;
+    overflow: hidden;
+  }
+
+  canvas { 
+    display: block; 
+    width: 100%; 
+    height: 100%; 
+  }
+
+  #panel {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 14px;
+    padding: 12px 14px;
+    background: rgba(12, 18, 38, 0.98);
+    border-top: 1px solid #23336e;
+    flex-shrink: 0;
+    overflow-y: auto;
+    max-height: 45vh;
+  }
+
+  .slider-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .slider-box label {
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    color: #9fb4ff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  .slider-box label span { 
+    color: #e8f0ff; 
+    font-weight: bold; 
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #2a3a7a, #5a7aff);
+    outline: none;
+    width: 100%;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px; 
+    height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #cfe0ff, #4a6aff);
+    box-shadow: 0 0 10px #5a8aff;
+    cursor: pointer;
+  }
+
+  input[type=range]::-moz-range-thumb {
+    width: 18px; 
+    height: 18px;
+    border: none;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #cfe0ff, #4a6aff);
+    box-shadow: 0 0 10px #5a8aff;
+    cursor: pointer;
+  }
+
+  #buttons {
+    grid-column: span 2;
+    display: flex;
+    justify-content: center;
+    margin-top: 5px;
+  }
+
+  button {
+    width: 100%;
+    max-width: 320px;
+    padding: 14px 20px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: transform .08s, box-shadow .2s, background .3s;
+  }
+
+  #btnToggle {
+    background: linear-gradient(180deg, #37d67a, #1a9e4e);
+    color: #04140a;
+    box-shadow: 0 0 20px #2ecc71aa;
+  }
+
+  #btnToggle.running {
+    background: linear-gradient(180deg, #ff5c5c, #b81f1f);
+    color: #1a0404;
+    box-shadow: 0 0 20px #ff4040aa;
+  }
+
+  button:active { 
+    transform: scale(0.97); 
+  }
+
+  @media (min-width: 768px) {
+    #scene { 
+      width: 100%; 
+      max-width: 900px; 
+      border-radius: 18px; 
+      margin: 10px auto 0; 
+    }
+    #panel { 
+      width: 900px; 
+      grid-template-columns: repeat(4, 1fr); 
+      border-radius: 14px; 
+      max-height: none;
+      margin: 10px auto;
+    }
+    #buttons { 
+      grid-column: span 4; 
+    }
+  }
+</style>
 </head>
 <body>
 
@@ -49,6 +208,367 @@
   </div>
 </div>
 
-<script src="app.js"></script>
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  let W, H, DPR;
+
+  function resize() {
+    DPR = window.devicePixelRatio || 1;
+    const rect = cv.parentElement.getBoundingClientRect();
+    
+    W = rect.width || cv.parentElement.offsetWidth || window.innerWidth;
+    H = rect.height || cv.parentElement.offsetHeight || 300;
+
+    cv.width = W * DPR; 
+    cv.height = H * DPR;
+    cv.style.width = W + 'px'; 
+    cv.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  
+  window.addEventListener('resize', resize);
+  // Даем браузеру время отрисовать DOM перед замером
+  setTimeout(resize, 50); 
+  resize();
+
+  // ---------- ползунки ----------
+  const sliders = [];
+  for (let i = 0; i < 8; i++) {
+    const el = document.getElementById('s' + i);
+    const out = document.getElementById('v' + i);
+    sliders.push({ el, out });
+    el.addEventListener('input', () => { 
+      out.textContent = (+el.value).toFixed(1); 
+    });
+  }
+  const val = i => +sliders[i].el.value;
+
+  // ---------- состояние ----------
+  let running = false;
+  const particles = [];
+  const splashes = [];
+  const mist = [];
+  const ripples = [];
+  let emitAcc = 0;
+  let lastT = performance.now();
+
+  // ---------- кнопка ----------
+  const btnToggle = document.getElementById('btnToggle');
+  btnToggle.addEventListener('click', () => {
+    running = !running;
+    if (running) {
+      btnToggle.textContent = 'СТОП';
+      btnToggle.classList.add('running');
+    } else {
+      btnToggle.textContent = 'СТАРТ';
+      btnToggle.classList.remove('running');
+    }
+  });
+
+  // ---------- геометрия ----------
+  function getGeom() {
+    const cx = W * 0.5;
+    const rimY = H * 0.35;
+    const bowlBottom = H * 0.9;
+    const rimW = Math.min(W * 0.35, 200);
+    const bowlW = rimW * 0.78;
+    
+    const innerTop = rimY + 16;
+    const innerBottom = bowlBottom - 22;
+    const innerW = bowlW * 0.86;
+    const waterY = innerTop + (innerBottom - innerTop) * 0.55;
+    
+    return { cx, rimY, bowlBottom, rimW, bowlW, innerTop, innerBottom, innerW, waterY };
+  }
+
+  // ---------- цвет ----------
+  function streamColor(t, alpha) {
+    const r = Math.round(160 - 100 * t);
+    const g = Math.round(120 - 80 * t);
+    const b = Math.round(60 - 40 * t);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  // ---------- рисование унитаза ----------
+  function drawToilet() {
+    const { cx, rimY, bowlBottom, rimW, bowlW, innerTop, innerBottom, innerW, waterY } = getGeom();
+
+    // тень
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(cx, bowlBottom + 16, rimW * 1.1, 20, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.filter = 'blur(8px)';
+    ctx.fill();
+    ctx.restore();
+
+    // корпус
+    const bodyGrad = ctx.createLinearGradient(cx - rimW, rimY, cx + rimW, bowlBottom);
+    bodyGrad.addColorStop(0, '#e8eef5');
+    bodyGrad.addColorStop(0.35, '#c7d2de');
+    bodyGrad.addColorStop(0.6, '#f5f9ff');
+    bodyGrad.addColorStop(1, '#9aa8b8');
+
+    ctx.beginPath();
+    ctx.moveTo(cx - rimW, rimY);
+    ctx.bezierCurveTo(cx - rimW * 1.15, rimY + (bowlBottom - rimY) * 0.45,
+                      cx - bowlW * 1.1, bowlBottom - 40,
+                      cx - bowlW * 0.72, bowlBottom);
+    ctx.bezierCurveTo(cx - bowlW * 0.3, bowlBottom + 20,
+                      cx + bowlW * 0.3, bowlBottom + 20,
+                      cx + bowlW * 0.72, bowlBottom);
+    ctx.bezierCurveTo(cx + bowlW * 1.1, bowlBottom - 40,
+                      cx + rimW * 1.15, rimY + (bowlBottom - rimY) * 0.45,
+                      cx + rimW, rimY);
+    ctx.closePath();
+    ctx.fillStyle = bodyGrad;
+    ctx.fill();
+
+    // блик
+    ctx.save();
+    ctx.clip();
+    const shine = ctx.createLinearGradient(cx - rimW * 0.6, rimY, cx + rimW * 0.2, bowlBottom);
+    shine.addColorStop(0, 'rgba(255,255,255,0.55)');
+    shine.addColorStop(0.4, 'rgba(255,255,255,0.08)');
+    shine.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = shine;
+    ctx.fillRect(cx - rimW * 1.2, rimY, rimW * 1.6, bowlBottom - rimY + 30);
+    ctx.restore();
+
+    // чаша
+    const bowlGrad = ctx.createRadialGradient(cx, innerTop + 30, 10, cx, innerBottom, innerW * 1.2);
+    bowlGrad.addColorStop(0, '#dfe8f2');
+    bowlGrad.addColorStop(0.55, '#b9c6d6');
+    bowlGrad.addColorStop(1, '#7d8b9e');
+
+    ctx.beginPath();
+    ctx.ellipse(cx, innerTop, innerW, 26, 0, 0, Math.PI * 2);
+    ctx.fillStyle = bowlGrad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx - innerW, innerTop);
+    ctx.bezierCurveTo(cx - innerW * 1.02, innerTop + (innerBottom - innerTop) * 0.5,
+                      cx - innerW * 0.62, innerBottom - 10,
+                      cx, innerBottom);
+    ctx.bezierCurveTo(cx + innerW * 0.62, innerBottom - 10,
+                      cx + innerW * 1.02, innerTop + (innerBottom - innerTop) * 0.5,
+                      cx + innerW, innerTop);
+    ctx.fillStyle = 'rgba(120,135,155,0.35)';
+    ctx.fill();
+
+    // вода
+    const waterGrad = ctx.createLinearGradient(cx, waterY - 20, cx, innerBottom);
+    waterGrad.addColorStop(0, 'rgba(150,210,255,0.55)');
+    waterGrad.addColorStop(1, 'rgba(40,90,150,0.85)');
+
+    ctx.beginPath();
+    ctx.ellipse(cx, waterY, innerW * 0.92, 20, 0, 0, Math.PI * 2);
+    ctx.fillStyle = waterGrad;
+    ctx.fill();
+
+    // блик воды
+    ctx.beginPath();
+    ctx.ellipse(cx - innerW * 0.3, waterY - 4, innerW * 0.32, 6, -0.2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fill();
+
+    // ободок
+    ctx.beginPath();
+    ctx.ellipse(cx, rimY, rimW, 30, 0, 0, Math.PI * 2);
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = '#eef4fb';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(cx, rimY, rimW, 30, 0, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(140,160,185,0.9)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(cx, rimY, rimW - 8, 23, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(30,40,55,0.55)';
+    ctx.fill();
+  }
+
+  // ---------- физика ----------
+  function spawnParticle() {
+    const g = getGeom();
+    const force = val(0);
+    const volume = val(1);
+    const wet = val(2);
+    const viscosity = val(3);
+    const spread = val(4);
+    const turb = val(5);
+    const tone = val(6) / 10;
+    const density = val(7);
+
+    const startX = g.cx + (Math.random() - 0.5) * 12;
+    const startY = g.rimY - 60;
+
+    const vy = 2.5 + force * 0.9 + volume * 0.15;
+    const vx = (Math.random() - 0.5) * spread * 0.8;
+
+    const isMist = Math.random() < wet * 0.06;
+
+    const p = {
+      x: startX,
+      y: startY,
+      vx,
+      vy,
+      r: (isMist ? 1 : 2.5) + volume * 0.55 + viscosity * 0.35 + Math.random() * 1.5,
+      tone,
+      density: 0.35 + density * 0.06,
+      turb: turb * 0.06,
+      life: 1,
+      mist: isMist
+    };
+    if (isMist) mist.push(p); else particles.push(p);
+  }
+
+  function updateParticles(dt) {
+    const g = getGeom();
+    const waterY = g.waterY;
+    const grav = 0.35;
+
+    if (running) {
+      const force = val(0);
+      const volume = val(1);
+      const rate = 8 + force * 8 + volume * 5;
+      emitAcc += rate * dt;
+      while (emitAcc >= 1) {
+        spawnParticle();
+        emitAcc -= 1;
+      }
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.vy += grav;
+      p.vx += (Math.random() - 0.5) * p.turb;
+      p.vx *= 0.995;
+      p.x += p.vx;
+      p.y += p.vy;
+
+      if (p.y >= waterY) {
+        createSplash(p.x, waterY, p);
+        particles.splice(i, 1);
+      } else if (p.y > H + 50) {
+        particles.splice(i, 1);
+      }
+    }
+
+    for (let i = mist.length - 1; i >= 0; i--) {
+      const p = mist[i];
+      p.vy += grav * 0.4;
+      p.vx += (Math.random() - 0.5) * p.turb * 1.5;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= 0.012;
+      if (p.life <= 0 || p.y > waterY) mist.splice(i, 1);
+    }
+
+    for (let i = splashes.length - 1; i >= 0; i--) {
+      const s = splashes[i];
+      s.vy += grav * 1.1;
+      s.x += s.vx;
+      s.y += s.vy;
+      s.life -= 0.025;
+      if (s.life <= 0 || s.y > waterY + 30) splashes.splice(i, 1);
+    }
+
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      const r = ripples[i];
+      r.rad += 1;
+      r.life -= 0.02;
+      if (r.life <= 0) ripples.splice(i, 1);
+    }
+  }
+
+  function createSplash(x, y, p) {
+    const n = 2 + Math.floor(p.r * 0.6);
+    for (let i = 0; i < n; i++) {
+      splashes.push({
+        x, y: y - 4,
+        vx: (Math.random() - 0.5) * (3 + p.tone * 2),
+        vy: -1 - Math.random() * 3,
+        r: 0.8 + Math.random() * 2,
+        tone: p.tone,
+        life: 0.7 + Math.random() * 0.3
+      });
+    }
+    ripples.push({ x, y, rad: 3, life: 0.7, tone: p.tone });
+  }
+
+  // ---------- отрисовка ----------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    const bg = ctx.createRadialGradient(W * 0.5, H * 0.9, 30, W * 0.5, H * 0.9, W * 0.8);
+    bg.addColorStop(0, 'rgba(28,36,64,0.9)');
+    bg.addColorStop(1, 'rgba(6,6,12,0)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    drawToilet();
+    const g = getGeom();
+
+    for (const r of ripples) {
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y, r.rad, r.rad * 0.28, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(220,240,255,${r.life * 0.6})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    ctx.save();
+    for (const p of mist) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = streamColor(p.tone, p.life * 0.35 * p.density);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.save();
+    for (const p of particles) {
+      const grd = ctx.createRadialGradient(p.x - p.r * 0.3, p.y - p.r * 0.3, p.r * 0.2, p.x, p.y, p.r);
+      grd.addColorStop(0, streamColor(p.tone, 0.95 * p.density));
+      grd.addColorStop(1, streamColor(Math.min(1, p.tone + 0.25), 0.65 * p.density));
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+    }
+    ctx.restore();
+
+    for (const s of splashes) {
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = streamColor(s.tone, s.life * 0.85);
+      ctx.fill();
+    }
+
+    const vg = ctx.createRadialGradient(W * 0.5, H * 0.5, H * 0.35, W * 0.5, H * 0.5, H * 0.85);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // ---------- цикл ----------
+  function loop(t) {
+    const dt = Math.min(3, (t - lastT) / 16.6667);
+    lastT = t;
+    updateParticles(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
 </body>
 </html>
