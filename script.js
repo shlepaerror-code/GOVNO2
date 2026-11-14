@@ -20,7 +20,9 @@
     const el = document.getElementById('s' + i);
     const out = document.getElementById('v' + i);
     sliders.push({ el, out });
-    el.addEventListener('input', () => { out.textContent = (+el.value).toFixed(1); });
+    el.addEventListener('input', () => { 
+      out.textContent = (+el.value).toFixed(1); 
+    });
   }
   const val = i => +sliders[i].el.value;
 
@@ -33,35 +35,32 @@
   let emitAcc = 0;
   let lastT = performance.now();
 
-  // ---------- кнопки ----------
-  const btnStart = document.getElementById('btnStart');
-  const btnStop = document.getElementById('btnStop');
-
-  btnStart.addEventListener('click', () => {
-    running = true;
-    btnStart.disabled = true;
-    btnStop.disabled = false;
-  });
-  btnStop.addEventListener('click', () => {
-    running = false;
-    btnStart.disabled = false;
-    btnStop.disabled = true;
+  // ---------- кнопка ----------
+  const btnToggle = document.getElementById('btnToggle');
+  btnToggle.addEventListener('click', () => {
+    running = !running;
+    if (running) {
+      btnToggle.textContent = 'СТОП';
+      btnToggle.classList.add('running');
+    } else {
+      btnToggle.textContent = 'СТАРТ';
+      btnToggle.classList.remove('running');
+    }
   });
 
   // ---------- геометрия унитаза ----------
   function toiletGeom() {
     const cx = W * 0.5;
-    const rimY = H * 0.30;
+    const rimY = H * 0.32;
     const bowlTop = rimY;
     const bowlBottom = H * 0.88;
-    const rimW = Math.min(W * 0.30, 260);
+    const rimW = Math.min(W * 0.35, 260);
     const bowlW = rimW * 0.78;
     return { cx, rimY, bowlTop, bowlBottom, rimW, bowlW };
   }
 
-  // ---------- цвет струи ----------
-  function streamColor(t /*0..1*/, alpha) {
-    // от светло-коричневого до тёмно-зелёно-коричневого
+  // ---------- цвет ----------
+  function streamColor(t, alpha) {
     const r = Math.round(150 - 90 * t);
     const g = Math.round(110 - 70 * t);
     const b = Math.round(50 - 30 * t);
@@ -73,16 +72,16 @@
     const g = toiletGeom();
     const { cx, rimY, bowlBottom, rimW, bowlW } = g;
 
-    // тень под унитазом
+    // тень
     ctx.save();
     ctx.beginPath();
-    ctx.ellipse(cx, bowlBottom + 18, rimW * 1.05, 24, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.filter = 'blur(6px)';
+    ctx.ellipse(cx, bowlBottom + 16, rimW * 1.1, 20, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.filter = 'blur(8px)';
     ctx.fill();
     ctx.restore();
 
-    // корпус (внешний)
+    // корпус
     const bodyGrad = ctx.createLinearGradient(cx - rimW, rimY, cx + rimW, bowlBottom);
     bodyGrad.addColorStop(0, '#e8eef5');
     bodyGrad.addColorStop(0.35, '#c7d2de');
@@ -94,8 +93,8 @@
     ctx.bezierCurveTo(cx - rimW * 1.15, rimY + (bowlBottom - rimY) * 0.45,
                       cx - bowlW * 1.1, bowlBottom - 40,
                       cx - bowlW * 0.72, bowlBottom);
-    ctx.bezierCurveTo(cx - bowlW * 0.3, bowlBottom + 22,
-                      cx + bowlW * 0.3, bowlBottom + 22,
+    ctx.bezierCurveTo(cx - bowlW * 0.3, bowlBottom + 20,
+                      cx + bowlW * 0.3, bowlBottom + 20,
                       cx + bowlW * 0.72, bowlBottom);
     ctx.bezierCurveTo(cx + bowlW * 1.1, bowlBottom - 40,
                       cx + rimW * 1.15, rimY + (bowlBottom - rimY) * 0.45,
@@ -104,7 +103,7 @@
     ctx.fillStyle = bodyGrad;
     ctx.fill();
 
-    // блик по корпусу
+    // блик
     ctx.save();
     ctx.clip();
     const shine = ctx.createLinearGradient(cx - rimW * 0.6, rimY, cx + rimW * 0.2, bowlBottom);
@@ -115,7 +114,7 @@
     ctx.fillRect(cx - rimW * 1.2, rimY, rimW * 1.6, bowlBottom - rimY + 30);
     ctx.restore();
 
-    // внутренняя чаша
+    // чаша внутри
     const innerTop = rimY + 16;
     const innerBottom = bowlBottom - 22;
     const innerW = bowlW * 0.86;
@@ -130,7 +129,6 @@
     ctx.fillStyle = bowlGrad;
     ctx.fill();
 
-    // стенки чаши
     ctx.beginPath();
     ctx.moveTo(cx - innerW, innerTop);
     ctx.bezierCurveTo(cx - innerW * 1.02, innerTop + (innerBottom - innerTop) * 0.5,
@@ -153,13 +151,13 @@
     ctx.fillStyle = waterGrad;
     ctx.fill();
 
-    // блик на воде
+    // блик воды
     ctx.beginPath();
     ctx.ellipse(cx - innerW * 0.3, waterY - 4, innerW * 0.32, 6, -0.2, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
     ctx.fill();
 
-    // ободок (rim)
+    // ободок
     ctx.beginPath();
     ctx.ellipse(cx, rimY, rimW, 30, 0, 0, Math.PI * 2);
     ctx.lineWidth = 14;
@@ -172,7 +170,6 @@
     ctx.strokeStyle = 'rgba(140,160,185,0.9)';
     ctx.stroke();
 
-    // отверстие ободка
     ctx.beginPath();
     ctx.ellipse(cx, rimY, rimW - 8, 23, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(30,40,55,0.55)';
@@ -181,22 +178,22 @@
     return { waterY, innerW };
   }
 
-  // ---------- физика струи ----------
+  // ---------- физика ----------
   function spawnParticle() {
     const g = toiletGeom();
-    const force = val(0);        // сила
-    const volume = val(1);       // объём (размер капель)
-    const wet = val(2);          // влажность (доля мелких брызг)
-    const viscosity = val(3);    // вязкость (слипание, размер)
-    const spread = val(4);       // разброс
-    const turb = val(5);         // турбулентность
-    const tone = val(6) / 10;    // цвет
-    const density = val(7);      // плотность (непрозрачность/вес)
+    const force = val(0);
+    const volume = val(1);
+    const wet = val(2);
+    const viscosity = val(3);
+    const spread = val(4);
+    const turb = val(5);
+    const tone = val(6) / 10;
+    const density = val(7);
 
-    const startX = g.cx + (Math.random() - 0.5) * 10;
+    const startX = g.cx + (Math.random() - 0.5) * 12;
     const startY = g.rimY - 40;
 
-    const vy = 2 + force * 0.9 + volume * 0.15;
+    const vy = 2.5 + force * 0.9 + volume * 0.15;
     const vx = (Math.random() - 0.5) * spread * 0.8;
 
     const isMist = Math.random() < wet * 0.06;
@@ -206,7 +203,7 @@
       y: startY,
       vx,
       vy,
-      r: (isMist ? 0.8 : 2.2) + volume * 0.55 + viscosity * 0.35 + Math.random() * 1.2,
+      r: (isMist ? 1 : 2.5) + volume * 0.55 + viscosity * 0.35 + Math.random() * 1.5,
       tone,
       density: 0.35 + density * 0.06,
       turb: turb * 0.06,
@@ -219,13 +216,12 @@
   function updateParticles(dt) {
     const g = toiletGeom();
     const waterY = g.waterY;
-    const grav = 0.38;
+    const grav = 0.35;
 
-    // эмиссия
     if (running) {
       const force = val(0);
       const volume = val(1);
-      const rate = 6 + force * 6 + volume * 4; // частиц в кадр
+      const rate = 6 + force * 6 + volume * 4;
       emitAcc += rate * dt;
       while (emitAcc >= 1) {
         spawnParticle();
@@ -233,7 +229,6 @@
       }
     }
 
-    // основные капли
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       p.vy += grav;
@@ -243,7 +238,6 @@
       p.y += p.vy;
 
       if (p.y >= waterY) {
-        // всплеск
         createSplash(p.x, waterY, p);
         particles.splice(i, 1);
       } else if (p.y > H + 50) {
@@ -251,7 +245,6 @@
       }
     }
 
-    // мелкая взвесь
     for (let i = mist.length - 1; i >= 0; i--) {
       const p = mist[i];
       p.vy += grav * 0.4;
@@ -262,7 +255,6 @@
       if (p.life <= 0 || p.y > waterY) mist.splice(i, 1);
     }
 
-    // брызги
     for (let i = splashes.length - 1; i >= 0; i--) {
       const s = splashes[i];
       s.vy += grav * 1.1;
@@ -272,10 +264,9 @@
       if (s.life <= 0 || s.y > waterY + 30) splashes.splice(i, 1);
     }
 
-    // круги на воде
     for (let i = ripples.length - 1; i >= 0; i--) {
       const r = ripples[i];
-      r.rad += 0.9;
+      r.rad += 1;
       r.life -= 0.02;
       if (r.life <= 0) ripples.splice(i, 1);
     }
@@ -288,7 +279,7 @@
         x, y: y - 4,
         vx: (Math.random() - 0.5) * (3 + p.tone * 2),
         vy: -1 - Math.random() * 3,
-        r: 0.8 + Math.random() * 1.8,
+        r: 0.8 + Math.random() * 2,
         tone: p.tone,
         life: 0.7 + Math.random() * 0.3
       });
@@ -300,7 +291,6 @@
   function draw() {
     ctx.clearRect(0, 0, W, H);
 
-    // фон-сцена
     const bg = ctx.createRadialGradient(W * 0.5, H * 0.9, 30, W * 0.5, H * 0.9, W * 0.8);
     bg.addColorStop(0, 'rgba(28,36,64,0.9)');
     bg.addColorStop(1, 'rgba(6,6,12,0)');
@@ -310,7 +300,6 @@
     const { waterY, innerW } = drawToilet();
     const g = toiletGeom();
 
-    // круги на воде
     for (const r of ripples) {
       ctx.beginPath();
       ctx.ellipse(r.x, r.y, r.rad, r.rad * 0.28, 0, 0, Math.PI * 2);
@@ -319,7 +308,6 @@
       ctx.stroke();
     }
 
-    // мелкая взвесь
     ctx.save();
     for (const p of mist) {
       ctx.beginPath();
@@ -329,9 +317,7 @@
     }
     ctx.restore();
 
-    // основные капли — с лёгким свечением/слипанием
     ctx.save();
-    ctx.globalCompositeOperation = 'source-over';
     for (const p of particles) {
       const grd = ctx.createRadialGradient(p.x - p.r * 0.3, p.y - p.r * 0.3, p.r * 0.2, p.x, p.y, p.r);
       grd.addColorStop(0, streamColor(p.tone, 0.95 * p.density));
@@ -343,7 +329,6 @@
     }
     ctx.restore();
 
-    // брызги
     for (const s of splashes) {
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
@@ -351,7 +336,6 @@
       ctx.fill();
     }
 
-    // лёгкая виньетка
     const vg = ctx.createRadialGradient(W * 0.5, H * 0.5, H * 0.35, W * 0.5, H * 0.5, H * 0.85);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
     vg.addColorStop(1, 'rgba(0,0,0,0.55)');
